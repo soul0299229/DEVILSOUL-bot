@@ -46,7 +46,7 @@ end
 # ── expiry ──────────────────────────────────────────────────────
 @feature("expiry", "Expiry gate")
 def _f_expiry(c):
-    y, m, d = c["expiry"]
+    y, m, d = c.get("expiry", (2039, 12, 31))
     brand = c["brand"]
     return {"lua": f"""
 local EXPIRY_TIMESTAMP = os.time({{ year = {y}, month = {m}, day = {d}, hour = 12, min = 0, sec = 0 }})
