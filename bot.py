@@ -18,7 +18,7 @@ from telegram.ext import (
 import lua_features as LF
 
 # ── config ──────────────────────────────────────────────────────
-BOT_TOKEN      = os.environ.get("8311904929:AAGBHZMPppnSFoekbeAy5_FhuaDV47vZsAc")
+BOT_TOKEN      = os.environ.get("BOT_TOKEN")
 OWNER_USER_ID  = int(os.environ.get("OWNER_USER_ID"))
 OUTPUT_NAME    = "DEVILSOUL.lua"
 DEFAULT_BRAND  = "DEVILSOUL"
