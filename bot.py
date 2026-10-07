@@ -1,6 +1,5 @@
-# bot.py — Devil Menu ULTIMATE
+# bot.py — Devil Menu ULTIMATE (FIXED)
 # 17 security layers (9 engine bypass + 8 behavioral)
-# Visible in-game menu matching settings layout
 # Python 3.10+ | python-telegram-bot v20+
 import os, io, time, random
 from string import Template
@@ -530,7 +529,7 @@ end
 """
 
 # =============================================================
-# PLAYER ESP (uses $esp_*)
+# PLAYER ESP (uses $esp_*) — GameplayData moved to top, so no scope bug
 # =============================================================
 PLAYER_ESP_LUA = r"""
 -- PLAYER ESP
@@ -612,7 +611,7 @@ local function _tag(pawn, pc)
             w:SetPositionInViewport(FVector2D(s.X - 60, s.Y - 20), true)
             w:SetDesiredSizeInViewport(FVector2D(120, 20))
             local nm = _name(pawn)
-            local me = GameplayData.GetPlayerCharacter()
+            local me = _G.GameplayData and _G.GameplayData.GetPlayerCharacter and _G.GameplayData.GetPlayerCharacter()
             if slua.isValid(me) then
                 local mp = me:K2_GetActorLocation()
                 local d = math.sqrt((mp.X-loc.X)^2 + (mp.Y-loc.Y)^2 + (mp.Z-loc.Z)^2) / 100
@@ -629,7 +628,7 @@ _G._ESP_Tick = function()
     if now - _G._ESP.last_rotate >= _G._ESP.rotate then
         _G._ESP.style = _pick(); _G._ESP.last_rotate = now
     end
-    local me = GameplayData.GetPlayerCharacter()
+    local me = _G.GameplayData and _G.GameplayData.GetPlayerCharacter and _G.GameplayData.GetPlayerCharacter()
     if not slua.isValid(me) then return end
     local myTeam = me:GetTeamID() or 0
     local pc = me:GetPlayerControllerSafety()
@@ -700,7 +699,7 @@ end
 _G._LOOT_Tick = function()
     if not _G._LOOT.enabled then return end
     if _G._MOD_PAUSED or not CheckExpiration() then return end
-    local me = GameplayData.GetPlayerCharacter()
+    local me = _G.GameplayData and _G.GameplayData.GetPlayerCharacter and _G.GameplayData.GetPlayerCharacter()
     if not slua.isValid(me) then return end
     local mp = me:K2_GetActorLocation()
     pcall(function()
@@ -731,7 +730,7 @@ end
 """
 
 # =============================================================
-# VISIBLE MENU (built from widget instances)
+# VISIBLE MENU — fixes: enabled toggle, double-build guard, layout
 # =============================================================
 MENU_LUA = r"""
 -- ============================================================
@@ -795,9 +794,9 @@ local function _content_row(idx, label, value, fn)
     local vp = require("client.common.ui_util").GetViewportSize()
     local cx = vp.X * 0.5 - 340
     local y = 260 + idx * 34
-    local row = _mk(label, cx, y, 480, 28, 13, 1, 1, 1, 0.0, false)
+    local row = _mk(label, cx, y, 360, 28, 13, 1, 1, 1, 0.0, false)
     table.insert(_menu.content, row)
-    local toggle = _mk(tostring(value), cx + 500, y, 120, 28, 13, 1, 1, 0.3, 0.5, true)
+    local toggle = _mk(tostring(value), cx + 380, y, 110, 28, 13, 1, 1, 0.3, 0.5, true)
     _bind(toggle, fn)
     table.insert(_menu.content, toggle)
     return toggle
@@ -808,27 +807,26 @@ local function _render_tab()
     local vp = require("client.common.ui_util").GetViewportSize()
     local cx = vp.X * 0.5 - 340
 
-    -- Header
-    local hdr = _mk("— " .. _menu.tabs[_menu.tab] .. " —", cx, 220, 620, 28, 14, 1, 0.85, 0.1, 0.0, false)
+    local hdr = _mk("— " .. _menu.tabs[_menu.tab] .. " —", cx, 220, 520, 28, 14, 1, 0.85, 0.1, 0.0, false)
     table.insert(_menu.content, hdr)
 
     if _menu.tab == 1 then
-        _content_row(0, "Player ESP", _G._ESP and "ON" or "OFF", function()
+        _content_row(0, "Player ESP", (_G._ESP.enabled and "ON" or "OFF"), function()
             _G._ESP.enabled = not _G._ESP.enabled; _render_tab()
         end)
-        _content_row(1, "ESP Style: " .. (_G._ESP and _G._ESP.style or "auto"), "CYCLE", function()
+        _content_row(1, "ESP Style: " .. _G._ESP.style, "CYCLE", function()
             local styles = {"auto","box","line","circle","skeleton","head","distance","name","health"}
             local i = 1
             for k, v in ipairs(styles) do if v == _G._ESP.style then i = k end end
             _G._ESP.style = styles[(i % #styles) + 1]
             _render_tab()
         end)
-        _content_row(2, "Name Tags", _G._ESP.name_on and "ON" or "OFF", function()
+        _content_row(2, "Name Tags", (_G._ESP.name_on and "ON" or "OFF"), function()
             _G._ESP.name_on = not _G._ESP.name_on; _render_tab()
         end)
     elseif _menu.tab == 2 then
         _content_row(0, "Aimbot Strength", AIMBOT_STRENGTH .. "/100", function() end)
-        _content_row(1, "Magic Bullet", MB_ENABLED and "ON" or "OFF", function()
+        _content_row(1, "Magic Bullet", (MB_ENABLED and "ON" or "OFF"), function()
             MB_ENABLED = not MB_ENABLED; _render_tab()
         end)
         _content_row(2, "MB Range", MB_RANGE .. "m", function() end)
@@ -836,23 +834,23 @@ local function _render_tab()
         _content_row(0, "Vehicle Radar", "OFF", function() end)
         _content_row(1, "Vehicle Distance", "150m", function() end)
     elseif _menu.tab == 4 then
-        _content_row(0, "Loot ESP", _G._LOOT.enabled and "ON" or "OFF", function()
+        _content_row(0, "Loot ESP", (_G._LOOT.enabled and "ON" or "OFF"), function()
             _G._LOOT.enabled = not _G._LOOT.enabled; _render_tab()
         end)
-        _content_row(1, "Weapons", _G._LOOT.weapons and "ON" or "OFF", function()
+        _content_row(1, "Weapons", (_G._LOOT.weapons and "ON" or "OFF"), function()
             _G._LOOT.weapons = not _G._LOOT.weapons; _render_tab()
         end)
-        _content_row(2, "Ammo", _G._LOOT.ammo and "ON" or "OFF", function()
+        _content_row(2, "Ammo", (_G._LOOT.ammo and "ON" or "OFF"), function()
             _G._LOOT.ammo = not _G._LOOT.ammo; _render_tab()
         end)
-        _content_row(3, "Meds", _G._LOOT.meds and "ON" or "OFF", function()
+        _content_row(3, "Meds", (_G._LOOT.meds and "ON" or "OFF"), function()
             _G._LOOT.meds = not _G._LOOT.meds; _render_tab()
         end)
-        _content_row(4, "Armor", _G._LOOT.armor and "ON" or "OFF", function()
+        _content_row(4, "Armor", (_G._LOOT.armor and "ON" or "OFF"), function()
             _G._LOOT.armor = not _G._LOOT.armor; _render_tab()
         end)
     elseif _menu.tab == 5 then
-        _content_row(0, "iPad Perspective", _G._GFX.ipad_perspective and "ON" or "OFF", function()
+        _content_row(0, "iPad Perspective", (_G._GFX.ipad_perspective and "ON" or "OFF"), function()
             _G._GFX.SetIPad(not _G._GFX.ipad_perspective); _render_tab()
         end)
         _content_row(1, "FOV Degree (90-135)", _G._GFX.fov_degree, function()
@@ -860,32 +858,33 @@ local function _render_tab()
             if d > 135 then d = 90 end
             _G._GFX.SetFOV(d); _render_tab()
         end)
-        _content_row(2, "Visual Cleanup", _G._GFX.visual_cleanup and "ON" or "OFF", function()
+        _content_row(2, "Visual Cleanup", (_G._GFX.visual_cleanup and "ON" or "OFF"), function()
             _G._GFX.SetCleanup(not _G._GFX.visual_cleanup); _render_tab()
         end)
-        _content_row(3, "Potato Mode", _G._GFX.potato_mode and "ON" or "OFF", function()
+        _content_row(3, "Potato Mode", (_G._GFX.potato_mode and "ON" or "OFF"), function()
             _G._GFX.SetPotato(not _G._GFX.potato_mode); _render_tab()
         end)
-        _content_row(4, "FPS Unlock 165", _G._GFX.fps_unlock and "ON" or "OFF", function()
+        _content_row(4, "FPS Unlock 165", (_G._GFX.fps_unlock and "ON" or "OFF"), function()
             _G._GFX.SetFPS(not _G._GFX.fps_unlock); _render_tab()
         end)
     end
 end
 
 local function _build()
+    if _menu.root and slua.isValid(_menu.root) then
+        return _menu.root
+    end
     local vp = require("client.common.ui_util").GetViewportSize()
     local vx, vy = vp.X, vp.Y
     local root_x = (vx - 700) * 0.5
     local root_y = (vy - 400) * 0.5
 
-    -- Root background
     local root = _mk("", root_x, root_y, 700, 400, 14, 1, 1, 1, 0.92, false)
     if root then
-        root:SetWidgetVisibility(UEnums.ESlateVisibility.Visible)
+        root:SetWidgetVisibility(UEnums.ESlateVisibility.SelfHitTestInvisible)
         _menu.root = root
     end
 
-    -- Tabs across top
     local tx = root_x + 10
     for i, name in ipairs(_menu.tabs) do
         local tb = _mk(name, tx, root_y + 10, 132, 26, 12, 1, 1, 1, 0.55, true)
@@ -897,7 +896,6 @@ local function _build()
         tx = tx + 136
     end
 
-    -- Sidebar right
     local sy = root_y + 44
     for i, sec in ipairs(_menu.sections) do
         local sb = _mk(sec, root_x + 550, sy, 140, 26, 11, 1, 1, 1, 0.55, true)
@@ -906,7 +904,6 @@ local function _build()
         sy = sy + 28
     end
 
-    -- Close X
     local cl = _mk("✕", root_x + 668, root_y + 10, 24, 24, 14, 1, 0.2, 0.2, 0.6, true)
     _bind(cl, function()
         _menu.open = false
@@ -929,7 +926,7 @@ _G._Menu_Render = _render_tab
 """
 
 # =============================================================
-# MASTER TEMPLATE
+# MASTER TEMPLATE — GameplayData moved to TOP (fix #1)
 # =============================================================
 MASTER = Template(r"""
 -- =============================================================
@@ -940,6 +937,10 @@ MASTER = Template(r"""
 -- CROSSHAIR: $crosshair | LAYERS: 17
 -- BUILT: $built_at
 -- =============================================================
+
+-- [[ [FIX #1] GameplayData loaded FIRST so all chunks below can use it ]]
+local GameplayData = require("GameLua.GameCore.Data.GameplayData")
+_G.GameplayData = GameplayData
 
 local EXPIRY_TIMESTAMP = os.time({ year = 2027, month = 10, day = 28, hour = 22, min = 40, sec = 0 })
 local TELEGRAM_LINK = "https://t.me/$bot_name"
@@ -981,8 +982,6 @@ $graphics_lua
 $player_esp_lua
 $loot_esp_lua
 $menu_lua
-
-local GameplayData = require("GameLua.GameCore.Data.GameplayData")
 
 local function _dm(a, b)
     if not a or not b then return 99999 end
